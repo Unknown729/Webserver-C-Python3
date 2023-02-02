@@ -3,35 +3,20 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
 #include <unistd.h>
 #include <string.h>
 
+// Print message error
 void error (char *msg)
 {
     perror(msg);
     exit(1);
 }
 
-/*
-void callingMethod(char *msg)
-{
-    if (msg == "GET")
-    {
-        return;
-    }
-    if (msg == "POST")
-    {
-        return;
-    }
-    else printf("No Method was accepted\n");
-}*/
-
 int main ()
 {
     int port_number = 65016;
-    char * header_line = "HTTP/1.1 200 OK \r\n\r\n";
-    
+
     // Create Socket
     int server_Socket;
     server_Socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -45,93 +30,67 @@ int main ()
 
     // bind the socket to host and port and start listening
     bind(server_Socket, (struct sockaddr*) &server_address, sizeof(server_address));
-    listen(server_Socket, 5);
-    printf("Server ready for connections\n");
+    listen(server_Socket, 1);
 
     while (1)
     {
+        printf("Server is ready to receive\n");
         int client_connection;
+
         //Accept incoming connection
         int len = sizeof(server_address); //without this we have errors as long unsigned int
         client_connection = accept(server_Socket, (struct sockaddr*) &server_address, &len);
-        printf("Connection Connected\n");
 
+        //receiving incoming Messages
         char buffer[1024];
         int content;
         if((content = recv(client_connection, &buffer, sizeof(buffer)-1, 0)) > 0)
         {
             buffer[content] = 0;
-            printf("%.*s\n", content, buffer);
         } 
-        char * a = strcat(buffer, " ");
-        int init_size = strlen(a);
+        
+        // Parse request to get file requested
         char delim[] = " ";
+        char * a = strcat(buffer, " ");
         char * ptr = strtok(a, delim);
-        //printf("%s\n", ptr);
-        char *pathfile_requested = strtok(NULL, delim);
-        char *file_requested = pathfile_requested+1;
-        //printf("File requesting is: %s\n", file_requested);
+        char *pathfile_request = strtok(NULL, delim);
+        char *file_requested = pathfile_request+1;
+
+        // Parse file if exist
         if (access(file_requested, F_OK) == 0)
-        {   // File Exist
-            //printf("Files exist\n");
-            //send(client_connection, header_line, sizeof(header_line), 0);
-            char file_data;
+        {
+            // send one line header HTTP
+            char * header_line = "HTTP/1.1 200 OK \r\n\r\n";
+            send(client_connection, header_line, strlen(header_line), 0);
+
+            //Open File, read and compile into one and send to the connection Socket
             FILE* file_access;
-            //char data[] = "";
             file_access = fopen(file_requested, "r");
-            //printf("here\n");
-            
-            do
+            char *data;
+            char * line = NULL;
+            size_t len = 0;
+            ssize_t read;
+            while ( (read = getline(&line, &len, file_access)) != -1)
             {
-                file_data = fgetc(file_access);
-                //strcat(data, &file_data);
-                //printf("%.s\n", data);
-                send(client_connection, &file_data, sizeof(file_data), 0);
-                //send(client_connection, data, strlen(data), 0);
-                //printf("he2342342re\n");
-                printf("%c\n", file_data);
-            
-            } while (file_data != EOF);
-            //send(client_connection, data, strlen(data), 0);
-            printf("2342424123515\n");
+                strncat(data, line, strlen(line));
+            }
+            send(client_connection, data, strlen(data), 0);
 
-            
-
+            //Clear data request and close file
+            data[0] = '\0'; 
             fclose(file_access);
+            if (line) 
+            {
+                free(line);
+            }
         }
-        else{
-            printf("File does not exist\n");
+        else
+        {
+            printf("\n404: File does not exist\n");
         }
-/*
-
-
-
-        
-        //char * responses;
-        //strncpy()
-        // strsep(&a, delim);
-        //printf("%li\n", sizeof(ptr));
-        //printf("%c\n", ptr[1]);
-
-        //printf("%s\n", responses);
-        //ptr = strtok(buffer, delim);
-
-        //printf("%s\n", ptr);
-
-        
-
-
-        
-        
-        //buffer[content] = 0;
-        //printf("\n%.*s\n", content, buffer);
-
-
-        // Seding data to the socket
-        //char *data = "GET /Hello.html HTTP/1.1\r\n";
-        //send(client_connection, data, strlen(data), 0);
-        close(client_connection);*/
+        buffer[0] = '\0';
+        //Close Client Connection
+        close(client_connection);
     }
-
     return 0;
 }
