@@ -13,7 +13,7 @@ void error (char *msg)
     exit(1);
 }
 
-int main ()
+int main (void)
 {
     int port_number = 65016;
 
